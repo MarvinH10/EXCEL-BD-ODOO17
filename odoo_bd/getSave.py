@@ -3,10 +3,10 @@ import mysql.connector
 import contextlib
 
 """ CONEXIÓN A ODOO VERSION 17 """
-ODOO_URL = "tu_url"
-ODOO_BD = "tu_bd"
-ODOO_USERNAME = "tu_usuario"
-ODOO_PASSWORD = "tu_token"
+ODOO_URL = "https://kdoshstoreproof.odoo.com"
+ODOO_BD = "kdoshstoreproof"
+ODOO_USERNAME = "j99crispin@gmail.com"
+ODOO_PASSWORD = "952fe0212b885854888fb8f720ce64d448512e30"
 
 """ ACA CONECTAREMOS A ODOO """
 def get_odoo_connection():
@@ -62,7 +62,7 @@ def mysql_connection():
         host='localhost',
         database='odoo_bd',
         user='root',
-        password=''
+        password='210701'
     )
     try:
         yield conn
