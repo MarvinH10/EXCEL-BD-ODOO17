@@ -3,24 +3,28 @@ import mysql.connector
 import contextlib
 
 """ CONEXIÓN A ODOO VERSION 17 """
-ODOO_URL = "https://kdoshstoreproof.odoo.com"
-ODOO_BD = "kdoshstoreproof"
-ODOO_USERNAME = "j99crispin@gmail.com"
-ODOO_PASSWORD = "952fe0212b885854888fb8f720ce64d448512e30"
+ODOO_URL = "https://duplicadokdoshsac.odoo.com"
+ODOO_BD = "duplicadokdoshsac"
+ODOO_USERNAME = "marvinhectorcamposdeza@gmail.com"
+ODOO_PASSWORD = "70ee9eba00fab294018cd604661db55b20e10de8"
 
 """ ACA CONECTAREMOS A ODOO """
 def get_odoo_connection():
-    common = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/common")
-    uid = common.authenticate(ODOO_BD, ODOO_USERNAME, ODOO_PASSWORD, {})
-    if not uid:
-        print("Error en la autenticación!")
+    try:
+        common = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/common")
+        uid = common.authenticate(ODOO_BD, ODOO_USERNAME, ODOO_PASSWORD, {})
+        if not uid:
+            print("Error en la autenticación")
+            return None, None
+        models = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/object")
+        return uid, models
+    except Exception as e:
+        print(f"Error conectando a Odoo: {e}")
         return None, None
-    models = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/object")
-    return uid, models
 
 """ OBTENDREMOS LOS PRODUCTOS Y SUS VARIANTES """
 def conect_get_product(uid, models):
-    domain = [['type', '=', 'product']]
+    domain = [['type', '=', 'consu']]
     fields = ["id", "name", "default_code", "categ_id", "type"]
     productos = models.execute_kw(ODOO_BD, uid, ODOO_PASSWORD, 'product.template', 'search_read', [domain], {'fields': fields})
 
@@ -62,7 +66,7 @@ def mysql_connection():
         host='localhost',
         database='odoo_bd',
         user='root',
-        password='210701'
+        password=''
     )
     try:
         yield conn
@@ -129,9 +133,41 @@ def save_proveedores_mysql(proveedores):
         conn.commit()
         print("Se almaceno correctamente a la BD los proveedores.")
 
+def get_full_category_path(uid, models, category_id):
+    category_path = []
+    current_id = category_id
+    while current_id:
+        category = models.execute_kw(ODOO_BD, uid, ODOO_PASSWORD, 'product.category', 'read', [current_id], {'fields': ['name', 'parent_id']})
+        if category:
+            category = category[0]
+            category_path.append(category['name'])
+            current_id = category['parent_id'][0] if category['parent_id'] else None
+        else:
+            break
+    return " / ".join(reversed(category_path))
+
+def get_and_save_categories(uid, models):
+    domain = []
+    fields = ['id', 'name', 'parent_id']
+    categories = models.execute_kw(ODOO_BD, uid, ODOO_PASSWORD, 'product.category', 'search_read', [domain], {'fields': fields})
+
+    with mysql_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM categorias")  # Limpiar tabla para evitar duplicados
+
+        for category in categories:
+            full_path = get_full_category_path(uid, models, category['id'])
+            cursor.execute("INSERT INTO categorias (categoria) VALUES (%s)", (full_path,))
+
+        conn.commit()
+        print("Categorías almacenadas correctamente.")
+
 """ FUNCION FINAL Y PRINCIPAL PARA EJECUTAR EL PROCESO COMPLETO """
 def main():
     uid, models = get_odoo_connection()
+    if uid:
+        get_and_save_categories(uid, models)
+
     if not uid:
         return
 
