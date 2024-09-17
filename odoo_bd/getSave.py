@@ -162,11 +162,57 @@ def get_and_save_categories(uid, models):
         conn.commit()
         print("Categorías almacenadas correctamente.")
 
+
+def get_and_save_attributes(uid, models):
+    domain = []
+    fields = ['attribute_id', 'value_ids']
+    attribute_lines = models.execute_kw(ODOO_BD, uid, ODOO_PASSWORD, 'product.template.attribute.line', 'search_read', [domain], {'fields': fields})
+
+    # Diccionario para almacenar atributos y sus valores concatenados
+    attribute_dict = {}
+
+    # Recorremos las líneas de atributos para obtener los nombres y valores
+    for line in attribute_lines:
+        # Obtener el nombre del atributo
+        attribute_id = line['attribute_id'][0]
+        attribute_name = models.execute_kw(ODOO_BD, uid, ODOO_PASSWORD, 'product.attribute', 'read', [attribute_id], {'fields': ['name']})[0]['name']
+
+        # Obtener los nombres de los valores del atributo
+        value_ids = line['value_ids']
+        value_names = models.execute_kw(ODOO_BD, uid, ODOO_PASSWORD, 'product.attribute.value', 'read', [value_ids], {'fields': ['name']})
+
+        # Usar un conjunto para eliminar duplicados
+        value_set = set([value['name'] for value in value_names])
+
+        # Concatenar los valores del atributo sin duplicados
+        value_names_concatenated = ",".join(sorted(value_set))
+
+        # Si el atributo ya existe en el diccionario, agregamos más valores
+        if attribute_name in attribute_dict:
+            # Unimos el conjunto existente con los nuevos valores y eliminamos duplicados
+            attribute_dict[attribute_name] = set(attribute_dict[attribute_name].split(",")).union(value_set)
+            attribute_dict[attribute_name] = ",".join(sorted(attribute_dict[attribute_name]))
+        else:
+            attribute_dict[attribute_name] = value_names_concatenated
+
+    # Insertar en la base de datos
+    with mysql_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM atributos")  # Limpiar la tabla antes de insertar nuevos datos
+
+        # Insertar cada atributo con sus valores concatenados
+        for attribute_name, value_concatenated in attribute_dict.items():
+            cursor.execute("INSERT INTO atributos (nombre_atributo, valores_atributo) VALUES (%s, %s)", (attribute_name, value_concatenated))
+
+        conn.commit()
+        print("Atributos y valores almacenados correctamente en la tabla 'atributos'.")
+
 """ FUNCION FINAL Y PRINCIPAL PARA EJECUTAR EL PROCESO COMPLETO """
 def main():
     uid, models = get_odoo_connection()
     if uid:
         get_and_save_categories(uid, models)
+        get_and_save_attributes(uid, models)
 
     if not uid:
         return
